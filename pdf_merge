@@ -1,0 +1,38 @@
+import numpy as np
+import PyPDF2 as PDF
+import sys
+
+class merge_PDF:
+	
+	def __init__(self):
+    """
+    Not a hugely powerful program but works with most text based pdfs, basically just uses PyPDF2's i/o to merge
+    """
+		print("Path to pdf Files:")
+		pdf_path = "C:\\Users\\amoores\\Documents\\" + input("C:\\Users\\amoores\\Documents\\",)
+		load = sys.argv[1:]
+		merged = self.merge(pdf_path, load)
+		self.write(merged)
+
+	def merge(self, pdf_path, load):
+		merged = PDF.PdfFileMerger()
+		print("File initialized.")
+		for file in load:
+			if file[-4:] != ".pdf":
+				file = file+".pdf"
+			merged.append(pdf_path+file)
+			print(file+" appended.")
+		return(merged)
+
+	def write(self, file):
+		output = input("Filename: Merged_PDF_",)
+		if output[-4:] != ".pdf":
+			output = "Merged_PDF_"+output+".pdf"
+		elif output[-4:] == ".pdf":
+			output = "Merged_PDF_"+output
+		print("Writing file...")
+		file.write("C:\\Users\\amoores\\Documents\\Python Output\\Merged\\"+output)
+		print("File written.")
+
+if __name__ == "__main__":
+	merger = merge_PDF()
