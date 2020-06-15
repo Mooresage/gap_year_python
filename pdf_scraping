@@ -1,0 +1,92 @@
+import numpy as np
+import pandas as pd
+import PyPDF2 as PDF # may need pip install as not with conda modules 
+import csv
+import sys
+
+class file_loader:
+	"""
+	Loads desginated files from the documents directory, inputted by user.
+	Loads price list as .txt file to be parsed by Python.
+	Loads cleanse spreadsheet as pandas dataframe for MPN to be extracted.
+	New in v1.3: pdf support added, bugs fixed.
+  Might be able to be adapted to use for something other than mpns??
+	"""
+	def __init__(self):
+		print(' '); print('PDF Scraper v1.3. Powered by Anaconda 3.')
+		print('Author: Alex Moores'); print(' ')
+		try:
+			self.output_file = r"C:\\Users\\amoores\\Documents\\Python Output\\Scrapes\\"+sys.argv[1]
+		except Exception:
+			print('Error: Only 1 argument taken for .csv filename.')
+			sys.exit(1)
+		if (self.output_file[-4:] != ".csv") & (self.output_file[-4:-3] != "."):
+			self.output_file = self.output_file+".csv"
+		print('Price list:')
+		pl_path = r'C:\Users\amoores\Documents\Cleansing'+input(r'C:\Users\amoores\Documents\Cleansing',)
+		print('Cleanse file:')
+		self.cs_path = r'C:\Users\amoores\Documents\Cleansing'+input(r'C:\Users\amoores\Documents\Cleansing',)
+		self.pl = self.load_pl(pl_path)[0]
+		print("Loaded price list, type: "+self.load_pl(pl_path)[1])
+		self.df, self.MPN_ls, self.MPN_len = self.load_cs(self.cs_path)
+		print("Loaded cleanse file.")
+
+	def load_pl(self, filepath):
+		if filepath[-4:] == ".txt":
+			type = ".txt"
+			pl_ld = open(filepath,'r')
+			pl = pl_ld.read(-1)
+			pl_len = len(pl)
+			pl_ld.close()
+		elif filepath[-4:] == ".pdf":
+			type, pl = ".pdf", []
+			pl_ld = PDF.PdfFileReader(open(filepath, 'rb'))
+			for i in range(0, pl_ld.getNumPages()):
+				pl.append(pl_ld.getPage(i).extractText())
+			pl = ''.join(pl[0:pl_ld.getNumPages()])
+		return(pl, type)
+
+	def load_cs(self, filepath):
+		df = pd.read_excel(filepath)
+		MPN_ls = np.array(df[r'Quality//Manufacturer Part No'])
+		MPN_len = len(MPN_ls)
+		return(df, MPN_ls, MPN_len)
+
+class pdf_scrape:
+	"""
+	From file_loader check parses the price list to find MPN entries, if they exist the index is noted in ck_ls.
+	If they do not exist in the price list then it is ignored.
+	Data is then exported as a csv file.
+	"""
+	def __init__(self):
+		pl, MPN_ls, MPN_len = file_loader.pl, file_loader.MPN_ls, file_loader.MPN_len
+		output_file = file_loader.output_file
+		self.ck_ls = self.check(pl, MPN_ls, MPN_len)
+		print("Saving " + sys.argv[1])
+		self.output(MPN_ls, self.ck_ls, file_loader.cs_path, output_file)
+		print("Saved.")
+		
+	def check(self, pl, MPN_ls, MPN_len):
+		ck_ls = []
+		for i in np.arange(0,MPN_len-1):
+			MPN = str(MPN_ls[i])
+			if ((MPN in pl) == True) & ((MPN != "SIG") & (MPN != 'nan')) == True:
+				ck_ls.append(i)
+			else: 			
+				if (MPN == "SIG") == True:
+					pass
+				#elif (MPN == "SIG") == False:
+					#print(str(MPN) + " not found in price list.")
+		return(ck_ls)
+
+	def output(self, MPN_ls, ck_ls, filepath_I, filepath_O):
+		df = pd.read_excel(filepath_I)
+		out_csv = csv.writer(open(filepath_O, 'w', newline=''))
+		out_csv.writerow(["Product Code","Sales","Stock","Current K8 Description","MPN","Status Code"])
+		for i in ck_ls:
+			out_csv.writerow([np.array(df['Product Code'])[i],np.array(df['Sales'])[i],
+					  np.array(df['Stock Value'])[i],np.array(df['Current K8 Description'])[i],
+					  np.array(df['Quality//Manufacturer Part No'])[i],np.array(df['Status Code'])[i]])			
+if __name__ == "__main__":
+	file_loader = file_loader()
+	pdf_scrape = pdf_scrape()
