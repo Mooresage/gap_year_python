@@ -1,0 +1,210 @@
+"""
+Parse using open; can be read as a .txt file.
+Find phrase 'COBie'
+Extract all '#x' values in list after 'COBie' entry
+Get what they are equivalent to
+Extract information
++ transpose option
++ folder by folder
++ UI?
+
+Does what it says on the tin, from working with Harry and image files.
+"""
+
+import numpy as np
+import csv, os, sys
+from itertools import chain as it_c
+
+class file_manipulation:
+
+	def load_ifc(self):
+		print("Directory:")
+		self.filepath = "C:\\Users\\amoores\\Documents\\IFC Parsing\\IFC Input\\" + input("C:\\Users\\amoores\\Documents\\IFC Parsing\\IFC Input\\", )
+		#filepath = "amoores\\Documents\\IFC Parsing\\NBS_QuinnBuildingProducts_PIRFoamBrd_QuinnTherm-QR.IFC"
+		if self.filepath[-2:] != r'\\':
+			self.filepath += "\\"
+		print("Save file to folder:")
+		self.output_fol = "C:\\Users\\amoores\\Documents\\IFC Parsing\\CSV Output\\" + input("C:\\Users\\amoores\\Documents\\IFC Parsing\\CSV Output\\", )
+		if self.output_fol[-2:] != '\\':
+			self.output_fol += "\\"
+		return(self.output_fol, self.filepath)
+
+	def open_ifc(self, file):
+		load_file = open(file, 'r')
+		self.load = load_file.read() #these files load nicely as .txt files
+		load_file.close()
+		return(self.load)
+
+	def insert_uniclass(self, out_csv, entries, info_var):
+		u_values = []
+		out_csv.writerow(['Uniclass_Values:']); out_csv.writerow(info_var[-3:])
+		for u in range(0,int(len(entries)/3)): # three uniclass vals per file
+			u_values.append(entries[(3*u):(3*(u+1))])
+		return(u_values)
+	
+	def extract_info(self, filepath, ignore_me, HASHES, del_var, filename, filepath_O):
+		out_csv = csv.writer(open((filepath_O+filename), 'w', newline = ''))
+		values, variables = [], []
+		for i in range(0,len(ignore_me)):
+			values.append([])
+		for itr in range(0,len(HASHES)):
+			load = open(filepath, 'r')
+			HASHES[itr].sort(key=int)
+			info_val, info_var, cuts = [], [], []
+			load = open(filepath, 'r')
+			while len(info_val) < len(HASHES[itr]):
+				line = load.readline()
+				if line == "":
+					break
+				else:				
+					for z in range(0, len(HASHES[itr])):
+						if (ignore_me[itr] not in line) & (("#"+HASHES[itr][z]+"=") in line[:6]):
+							var_st = line.find("'") + 1; var_fn = var_st + line[var_st:].find("'")
+							val_st = var_fn + line[var_fn+1:].find("(") + 1; val_fn = val_st + line[val_st+1:].find("),") + 1
+							extract_var = line[var_st:var_fn] + ": "
+							extract_val = line[val_st+1:val_fn]
+							info_var.append(extract_var); info_val.append(extract_val)
+						elif ignore_me[itr] in line:
+							pass
+			for j in range(0,len(info_var)):
+				if info_var[j] == info_var[0]:
+					cuts.append(j)
+			if transpose == True:
+				if (len(cuts) == 1) or (len(cuts) == 0):
+					if ignore_me[itr] == 'NBS_General':
+						variables.append(info_var[:-3]); values[itr].append([info_val[:-3]])
+					else:
+						variables.append(info_var); values[itr].append([info_val])
+
+				for k in range(0,len(cuts)):
+					if (k == len(cuts)-1) & (k != 0):
+						if (len(info_var[cuts[k]:]) != len(info_var[cuts[0]:cuts[1]])) & (info_var[-3] == 'Uniclass2015Title: '):
+							values[itr].append([info_val[cuts[k]:cuts[k]+cuts[1]]])
+							#uniclass = self.insert_uniclass(out_csv, info_val[cuts[k]+cuts[1]:], info_var)
+						else:
+							values[itr].append([info_val[cuts[k]:]])
+							variables.append(info_var[cuts[k]:])
+					elif (len(cuts) > 1) & (k != len(cuts)-1):
+						values[itr].append([info_val[cuts[k]:cuts[k+1]]])
+		var_tot = list(it_c.from_iterable(variables))
+		val_tot	= list(it_c.from_iterable(list(it_c.from_iterable(values))))
+		all_val = list(it_c.from_iterable(val_tot))
+		no_prods = int(len(val_tot)/len(ignore_me))
+		#import pdb; pdb.set_trace()
+		out_csv.writerow(var_tot)
+		ls = []
+		for i in range(0, no_prods):
+			sub_ls = []
+			for j in range(0, len(ignore_me)):
+				ch = int(i+j*no_prods)
+				vals = (val_tot[ch])
+				for val in vals:
+					sub_ls.append(val)
+			ls.append(sub_ls)
+			out_csv.writerow(ls[i])
+		print("Saved:", filename)
+
+class parser:
+
+	def search_vars(self, file):
+		self.vars = []
+		for line in file:
+			if 'IFCPROPERTYSET' in line:
+				anchor = line[1:].find('#')
+				anchor_start = anchor + line[anchor+1:].find("'") + 2
+				anchor_end = anchor_start + line[anchor_start+1:].find("'") + 1
+				if (line[anchor_start:anchor_end] != 'IFC') & (line[anchor_start:anchor_end] != 'xbim_MaterialFunctionAssignment'):
+				#ignore as not actual vales
+					self.vars.append(line[anchor_start:anchor_end])
+			else:
+				pass				
+		self.vars = list(dict.fromkeys(self.vars))
+		return(self.vars)
+
+	def hash_dictionary(self, file, HASHES):
+		all_HASHES = list(it_c.from_iterable(HASHES))
+		hash_dict = dict.fromkeys(all_HASHES)
+		hash_list, del_hashes, del_vars = [], [], []
+		for line in file:
+			if ('IFCPROPERTYSINGLEVALUE' in line) & (line[1:line.find('=')] in all_HASHES):
+				anchor = line[1:].find('(')
+				anchor_start = anchor + line[anchor+1:].find("'") + 1
+				anchor_end = anchor_start + line[anchor_start+1:].find("'") + 1
+				hash_dict[str(line[1:line.find('=')])] = line[anchor_start:anchor_end]
+				hash_list.append(line[anchor_start:anchor_end])
+		for key in hash_dict:
+			check = np.where(hash_dict[key] == np.array(hash_list))[0]
+			if len(check) != len(np.where(hash_dict[list(hash_dict.keys())[0]] == np.array(hash_list))[0]): # assuming first set is no prods
+				del_hash, del_var = key, hash_dict[key]
+				del_hashes.append(del_hash); del_vars.append(del_var)
+		for set in HASHES:
+			for dlt in del_hashes:
+				if dlt in set:
+					set.remove(dlt)
+				else:
+					pass		
+		return(HASHES, del_vars)
+
+	def parse_property(self, search, file):
+		self.finds = []
+		for property in search:
+			x = 0
+			property_location = []
+			while (property in file[x+1:]) == True: #is there another one in there
+				x += file[x+1:].find(property) + 1
+				property_location.append(x)
+			self.finds.append(property_location)
+		return(self.finds)
+
+	def parse_HASH(self, file, VALues):
+		self.HASHES = []
+		for VAL in VALues:
+			HASH_location = []
+			for i in range(0,len(VAL)):
+				if i < (len(VAL)-1):
+					for y in range(VAL[i],VAL[i+1]):
+						if file[y] == '#':
+							HASH_end = file[y:VAL[i+1]].find(',')
+							HASH_endline = file[y:VAL[i+1]].find(')')
+							if HASH_end < HASH_endline:
+								HASH_location.append(file[y+1:y+HASH_end])
+							elif HASH_end > HASH_endline:
+								HASH_location.append(file[y+1:y+HASH_endline])
+						elif file[y] == ';':
+							break
+						else:
+							pass
+				elif i == (len(VAL)-1):
+					for y in range(VAL[i],len(file)):
+						if file[y] == '#':
+							HASH_end = file[y:].find(',')
+							HASH_endline = file[y:].find(')')
+							if HASH_end < HASH_endline:
+								HASH_location.append(file[y+1:y+HASH_end])
+							elif HASH_end > HASH_endline:
+								HASH_location.append(file[y+1:y+HASH_endline])
+						elif file[y] == ';':
+							break
+						else:
+							pass
+			HASH_location = list(dict.fromkeys(HASH_location))
+			self.HASHES.append(HASH_location)
+		return(self.HASHES)
+
+if __name__ == "__main__":
+	parser = parser()
+	file_manip = file_manipulation()
+	Output_Folder, Filepath = file_manip.load_ifc()
+	os.chdir(Filepath)
+	transpose = True
+	print("transpose =", transpose)
+	for File in os.listdir():
+		if (File[-4:] == '.ifc' or '.IFC'):
+			Filepath = Filepath+File
+			Load_File = file_manip.open_ifc(File)
+			Look_For = parser.search_vars(open(File, 'r')); Look_For.sort(key=str)
+			Output_File = File[:-4] + ".csv"
+			VAL = parser.parse_property(Look_For, Load_File)
+			HASH = parser.parse_HASH(Load_File, VAL)
+			HASH, Del_Vars = parser.hash_dictionary(open(File,'r'), HASH)
+			extract = file_manip.extract_info(File, Look_For, HASH, Del_Vars, Output_File, Output_Folder)
