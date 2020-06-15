@@ -1,0 +1,137 @@
+import numpy as np
+import pandas as pd
+import csv
+
+class import_files:
+	
+	def __init__(self):
+    """
+    Very specific code for comparing different bits of spreadsheets, could do with some commandline stuff to make more flexible.
+    """
+		print('Load datalist filepath:')
+		xl_source = 'C:\\Users\\amoores\\Documents\\' + input('C:\\Users\\amoores\\Documents\\',)
+		print('Load comparison filepath:')
+		xl_comparison = 'C:\\Users\\amoores\\Documents\\' + input('C:\\Users\\amoores\\Documents\\',)
+		print('Loading Source File...')
+		self.df_source = pd.read_excel(xl_source)
+		print('Loading Comparison File...')
+		self.df_comparison = pd.read_excel(xl_comparison)
+		self.packages = self.collect_packages(); self.s, self.c = 2, 3
+		print('Done.')
+		
+	def collect_packages(self):
+		'''
+		input heading values wanted from dataframes, helps trim down and remove unecessary crap
+		>> in future make seperate file
+		'''
+		source_st = ['StockCode','Product Name','Brand','Weight','PackQTY', 'EAN BARCODE', 'INTRA_CODE','AnalysisKey1','AnalysisKey2'] #s=0
+		source_tb = ['Stock No','Brand','Description','EAN Barcode']								       #s=1
+		source_del = ['STOCK_NO', 'PROD_DESC']											       #s=2
+		compare_ss = ['SIG Product Code','Current K8 Product Description','Manufacturer Part Number','Current Status Code']	       #c=3
+		compare_ct = ['Product Code','Current K8 Description','Status Code']							       #c=4
+		
+		print('Packages Loaded.')
+		return(source_st, source_tb, source_del, compare_ss, compare_ct)
+
+class extract_info:
+	
+	def __init__(self):
+		packages = import_files.packages; s, c = import_files.s, import_files.c
+		df_source, df_comparison = import_files.df_source, import_files.df_comparison
+		df_s = self.extract_col(df_source, packages[s])
+		df_c = self.extract_col(df_comparison, packages[c])
+		self.write_csv(self.compare(df_s, df_c, s, c), s, c)
+	
+	def extract_col(self, df, cols):
+		df_trim = df[cols]
+		return(df_trim)
+
+	def compare(self, source, compare, s, c):
+		Prod_Code, Prod_Desc, MPN, Brand, Short_Desc, Weight, PackQTY, Status, Add_Info = [], [], [], [], [], [], [], [], []
+		print(source.columns.tolist())
+		s_col = input('Choose Comparator: ', )
+		comparator = source[s_col].to_list()
+		print(' '); print(compare.columns.tolist())
+		c_col = input('Choose Comparison: ', )
+		comparison = compare[c_col].to_list()
+		print('Running comparison...')
+		for i in range(0,len(comparator)):
+			for j in range(0,len(comparison)):
+				if (s == 0) & (c == 4):
+					if comparator[i] in comparison[j]:
+						brand = self.translate_abv(source['Brand'].tolist()[i])
+						prod_code, status_code = compare['Product Code'].tolist()[j], compare['Status Code'].tolist()[j]
+						mpn = comparator[i]
+						prod_desc = 'TOOLBANK ' + mpn + ' ' + brand + ' ' + source['Product Name'].tolist()[i]
+						short_desc = 'TOOLBANK ' + source['AnalysisKey2'].tolist()[i] + ' ' + source['AnalysisKey1'].tolist()[i]
+						weight, packqty = source['Weight'].tolist()[i], source['PackQTY'].tolist()[i]
+						add_info = 'EAN: ' + str(source['EAN BARCODE'].tolist()[i]) + ' Intrastat: ' + str(source['INTRA_CODE'].tolist()[i])
+						Prod_Code.append(prod_code); Status.append(status_code)
+						Prod_Desc.append(prod_desc); MPN.append(mpn)
+						Brand.append(brand); Short_Desc.append(short_desc)
+						Weight.append(weight); PackQTY.append(packqty)
+						Add_Info.append(add_info)
+					elif comparator[i] not in comparison[j]:
+						pass
+				elif (s == 0) & (c == 3):
+					if comparator[i] == comparison[j]:
+						brand = self.translate_abv(source['Brand'].tolist()[i])
+						prod_code, status_code = compare['SIG Product Code'].tolist()[j], compare['Current Status Code'].tolist()[j]
+						mpn = comparator[i]
+						prod_desc = 'TOOLBANK ' + mpn + ' ' + brand + ' ' + source['Product Name'].tolist()[i]
+						short_desc = 'TOOLBANK ' + source['AnalysisKey2'].tolist()[i] + ' ' + source['AnalysisKey1'].tolist()[i]
+						weight, packqty = source['Weight'].tolist()[i], source['PackQTY'].tolist()[i]
+						add_info = 'EAN: ' + str(source['EAN BARCODE'].tolist()[i]) + ' Intrastat: ' + str(source['INTRA_CODE'].tolist()[i])
+						Prod_Code.append(prod_code); Status.append(status_code)
+						Prod_Desc.append(prod_desc); MPN.append(mpn)
+						Brand.append(brand); Short_Desc.append(short_desc)
+						Weight.append(weight); PackQTY.append(packqty)
+						Add_Info.append(add_info)
+					elif comparator[i] != comparison[j]:
+						pass
+				elif (s == 2) & (c == 3):
+					if comparator[i] == comparison[j]:
+						mpn = comparator[i]
+						brand = self.translate_abv(str(mpn[:3]))
+						prod_code, status_code = compare['SIG Product Code'].tolist()[j], compare['Current Status Code'].tolist()[j]
+						mpn = comparator[i]
+						prod_desc = 'TOOLBANK ' + mpn + ' ' + source['PROD_DESC'].tolist()[i]
+						Prod_Code.append(prod_code); Status.append(status_code)
+						Prod_Desc.append(prod_desc); MPN.append(mpn)
+						Brand.append(brand)
+					elif comparator[i] != comparison[j]:
+						pass
+		print('Done.')
+		return([Prod_Code, Prod_Desc, MPN, Brand, Short_Desc, Weight, PackQTY, Status, Add_Info])
+
+	def translate_abv(self, brand):
+		with open('C:\\Users\\amoores\\Documents\\Cleansing\\Toolbank\\Toolbank Data\\toolbank_acronyms_transp.csv') as abv_csv:
+			abv_dict = csv.DictReader(abv_csv, delimiter = ',')
+			for row in abv_dict:
+				if brand in row.keys():
+					full_brand = row[brand]
+				elif brand not in row.keys():
+					full_brand = ''
+					pass
+		return(full_brand)
+	
+	def write_csv(self, info, s, c):
+		info = [x for x in info if x!= []]
+		print('Save with filepath:')
+		filepath = 'C:\\Users\\amoores\\Documents\\' + input('C:\\Users\\amoores\\Documents\\', )
+		out_csv = csv.writer(open(filepath, 'w', newline = ''))
+		print('Saving...')
+		if s == 0:
+			out_csv.writerow(['Prod_Code', 'Prod_Desc', 'MPN', 'Brand', 'Short_Desc', 'Weight', 'PackQTY', 'Status', 'Additional_Info'])
+			for k in range(0,len(info[0])):
+				out_csv.writerow([info[0][k], info[1][k], info[2][k], info[3][k], info[4][k], info[5][k], info[6][k], info[7][k], info[8][k]])
+		if s == 2:
+			out_csv.writerow(['Prod_Code', 'Prod_Desc', 'MPN', 'Brand', 'Status'])
+			for k in range(0,len(info[0])):
+				out_csv.writerow([info[0][k], info[1][k], info[2][k], info[3][k], info[4][k]])
+		print('Saved.')
+
+if __name__ == '__main__':
+	import_files = import_files()
+	extract_info = extract_info()
+	
