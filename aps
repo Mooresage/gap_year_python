@@ -1,0 +1,93 @@
+import numpy as np
+import pandas as pd
+import csv, sys, time
+
+class Input_File():
+
+	def __init__(self):
+		self.APs_df, self.user, self.savestem = pd.read_csv(sys.argv[1]), sys.argv[2], sys.argv[3]
+		self.branch_set, self.branch_indices = self.which_branch(self.APs_df)
+
+	def which_branch(self, APs_df):
+		branch_index = []
+		branches = sorted(list(set(APs_df['Branch Number'].tolist())))
+		for branch in branches:
+			branch_index.append(np.where(branch == np.array(APs_df['Branch Number']))[-1])
+		return(branches, branch_index)
+
+class Main_Body():
+	
+	def __init__(self):
+		self.bs_dict = self.bs_gen(Inpt_File.APs_df)
+		self.pl_dict = self.pl_gen(Inpt_File.APs_df, self.bs_dict)
+		self.lf_dict = self.lf_gen(self.bs_dict, self.pl_dict)
+		self.save_dict(Inpt_File.user, Inpt_File.savestem, self.lf_dict)
+
+	def bs_gen(self, APs_df):
+		bs_dict = {}
+		print('Generating Branch-Supplier dictionary...'); start_time = time.time()
+		for j in np.where(np.array(APs_df['Branch Number']) == branch)[0]:
+			order_code_c = str(APs_df['Branch Number'].tolist()[j]) + ' >> ' + str(APs_df['Order Number'].tolist()[j])
+			order_code_p = str(APs_df['Branch Number'].tolist()[j-1]) + ' >> ' + str(APs_df['Order Number'].tolist()[j-1])
+			if (j == 0) | (order_code_c != order_code_p):
+				bs_dict[order_code_c] = [APs_df['Product Code'].tolist()[j]]
+			elif (order_code_c == order_code_p):
+				bs_dict[order_code_c].append(APs_df['Product Code'].tolist()[j])
+		end_time = time.time()
+		print('Branch-Supplier dictionary generated. Took: ' + '{:4.2f}{}'.format(end_time-start_time, 's'))
+		return(bs_dict)
+
+	def pl_gen(self, APs_df, order_dict):
+		freq_dict, ck_ls = {}, []
+		print('Generating Product-Link cross reference dictionary...'); start_time = time.time()
+		codes = list(set(APs_df['Product Code'].tolist()))
+		for code in codes:
+			if code not in ck_ls:
+				ck_ls.append(code)
+				for vals in list(order_dict.values()):
+					for val in vals:
+						if (code in vals) & (code not in list(freq_dict.keys())):
+							if code == val:
+								pass
+							else:
+								freq_dict[code] = [str(code) + ' >> ' + str(val)]
+						elif (code in vals) & (code in list(freq_dict.keys())):
+							freq_dict[code].append(str(code) + ' >> ' + str(val))
+			elif code in ck_ls:
+				pass
+		end_time = time.time()
+		print('Product-Link dictionary generated. Took: ' + '{:7.2f}{}'.format(end_time-start_time, 's'))
+		return(freq_dict)
+
+	def lf_gen(self, bs_dict, pl_dict):
+		link_cnt, ck_ls = {}, []
+		print('Generating Link-Frequency count dictionary...'); start_time = time.time()
+		freq_vals, order_vals = list(pl_dict.values()), list(bs_dict.values())
+		for link_list in freq_vals:
+			for link in link_list:
+				frst, scnd = int(link[:8]), int(link[-8:])
+				ck_ls.append(link)
+				for order in order_vals:
+					if (frst != scnd) & ((frst in order) & (scnd in order)):
+						if link not in list(link_cnt.keys()):
+							link_cnt[link] = 1
+						elif link in list(link_cnt.keys()):
+							link_cnt[link] += 1
+		end_time = time.time(); print('Product-Link dictionary generated. Took: ' + '{:4.2f}{}'.format(end_time-start_time, 's'))
+		return(link_cnt)
+
+	def save_dict(self, user, savestem, lf_dict):
+		print('Saving Dictionary...')
+		start_time = time.time()
+		out_csv = csv.writer(open('C:\\Users\\' + str(user) + '\\Documents\\APs\\upload\\' + str(savestem)
+			+ '\\LF-' + str(branch) + '-' + str(savestem) + '.csv', 'w', newline = ''))
+		for key, val in lf_dict.items():
+			out_csv.writerow([key, val])
+		end_time = time.time()
+		print('Dictionary saved. Took: ' + '{:4.2f}{}'.format(end_time-start_time, 's'))
+
+if __name__ == '__main__':
+	Inpt_File = Input_File()
+	for branch in Inpt_File.branch_set:
+		print('Processing associated products for branch number: ' + str(branch))
+		Main_Body()
